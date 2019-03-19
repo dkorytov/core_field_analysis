@@ -179,7 +179,6 @@ def get_gao_2pt():
 
 def get_gao_r_bins():
     r_bins = np.logspace(-1.77, 1.8, 19)
-    # print(dtk.bins_avg(r_bins))
     return r_bins
 
 def get_core_2pt(r_bins,  core_xyz, core_m_infall, core_radius, core_hmass, m_infall, r_disrupt):
@@ -271,13 +270,13 @@ def get_cached_hod(fname, mass_bins, hod_halo_cnt, core_m_infall, core_radius, c
     hfile.close()
     return core_hod
 
-def get_cached_2pt(fname,  r_bins, core_xyz, core_m_infall, core_radius, m_infall, r_disrupt, force=False, write=True):
+def get_cached_2pt(fname,  r_bins, core_xyz, core_m_infall, core_radius, core_hmass, m_infall, r_disrupt, force=False, write=True):
     hfile = h5py.File(fname, 'a')
     key="wp mi:{},rd:{}".format(m_infall, r_disrupt)
     if key in hfile and not force:
         core_wp= hfile[key].value
     else:
-        core_wp = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, m_infall, r_disrupt)
+        core_wp = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, core_hmass, m_infall, r_disrupt)
         if write:
             hfile[key]=core_wp
     hfile.close()
@@ -309,7 +308,7 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False):
         for r_i, r_disrupt_v in enumerate(r_disrupt_bins):
             costs = []
             if use_wp:
-                core_xi = get_cached_2pt("cache/gao_rbins.hdf5", r_bins, core_xyz, core_m_infall, core_radius,  m_infall_v, r_disrupt_v,force=force)
+                core_xi = get_cached_2pt("cache/gao_rbins.hdf5", r_bins, core_xyz, core_m_infall, core_radius,  core_hmass, m_infall_v, r_disrupt_v,force=force)
                 costs.append( calc_distance(data_xi, core_xi))
             if use_hod:
                 core_hod = get_cached_hod("cache/model1.hdf5", mass_bins, hod_halo_cnt, core_m_infall, core_radius, core_hmass, m_infall_v, r_disrupt_v, force=force)
@@ -356,9 +355,9 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False):
     print("cost: ", min_cost)
 
     plt.figure()
-    best_xi = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, best_m_infall, best_r_disrupt)
+    best_xi = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, core_hmass, best_m_infall, best_r_disrupt)
     plt.loglog(r_bins_cen, best_xi, label='core best fit')
-    prof_xi = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, profile_m_infall, profile_r_disrupt)
+    prof_xi = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, core_hmass, profile_m_infall, profile_r_disrupt)
     plt.loglog(r_bins_cen, prof_xi, color='r', label='core profile fit')
 
     plt.loglog(r_bins_cen, data_xi, 'g', label=data_xi_label)
@@ -378,7 +377,17 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False):
     plt.legend(loc='best', framealpha=0.3)
 
     plt.figure()
-    plt.title("Wp(r)+HOD cost, Min mass: {:.2e}".format(np.min(mass_bins)))
+    title = ""
+    if use_hod:
+        title+="+ HOD "
+    if use_wp:
+        title+="+ Wp(rp) "
+    if use_abundance:
+        title+="+ Abund. "
+    title = title[2:]+"cost"
+    if use_hod:
+        title+=", Min HOD mass: {:.2e}".format(np.min(mass_bins))
+    plt.title(title)
     plt.pcolor(m_infall_bins_edges, r_disrupt_bins_edges, result.T, cmap='nipy_spectral_r', norm=clr.LogNorm())
     plt.xscale('log')
     plt.colorbar()
