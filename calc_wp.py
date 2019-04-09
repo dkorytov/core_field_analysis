@@ -194,8 +194,6 @@ def get_cac09_bp_hod(mass_bins, threshold=None):
     print("HOD: ", h)
     print("h_gal:", h_gal)
     print("h_halo:", h_halo)
-    plt.figure()
-    plt.plot(mass_bins[:-1], h, )
     return h_gal/h_halo
 
 def get_cac09_md_2pt(r_bins, threshold=None):
@@ -240,6 +238,7 @@ def load_fof(fof_fname):
     return fof_htag, m180b_mass
 
 def get_cores(preprocessed=True):
+    cosmology.setCosmology('WMAP7')
     if preprocessed:
         core_loc = "/home/dkorytov/data/AlphaQ/core_catalog5_preprocessed/AlphaQ.499.hdf5"
         hfile = h5py.File(core_loc, 'r')
@@ -247,8 +246,11 @@ def get_cores(preprocessed=True):
         x = hfile['x'].value
         y = hfile['y'].value
         z = hfile['z'].value
-        radius = hfile['r_peak'].value
-        m_infall = hfile['m_peak'].value
+        # radius = hfile['r_peak'].value
+        radius = hfile['radius'].value
+        # m_infall = hfile['m_peak'].value
+        m_infall = hfile['m_infall'].value
+        lg_m_infall = np.log10(m_infall)
         htag = hfile['fof_htag'].value
         hfile.close()
     else:
@@ -258,6 +260,7 @@ def get_cores(preprocessed=True):
         z = dtk.gio_read(core_loc, 'z')
         radius = dtk.gio_read(core_loc, 'radius')
         m_infall = dtk.gio_read(core_loc, 'infall_mass')
+        lg_m_infall = np.log10(m_infall)
         htag = dtk.gio_read(core_loc, 'fof_halo_tag')
     x = x / 0.70
     y = y / 0.70
@@ -268,7 +271,7 @@ def get_cores(preprocessed=True):
     srt = np.argsort(halo_tags)
     indx = dtk.search_sorted(halo_tags, htag, sorter=srt)
     print(np.sum(indx==-1), "number not found")
-    return core_xyz, m_infall, radius, halo_mass[indx]
+    return core_xyz, m_infall, lg_m_infall, radius, halo_mass[indx]
 
 def get_cached_hod(fname, mass_bins, hod_halo_cnt, core_m_infall, core_radius, core_hmass, m_infall, r_disrupt, force=False, write=True):
     hfile = h5py.File(fname, 'a')
@@ -295,7 +298,7 @@ def get_cached_2pt(fname,  r_bins, core_xyz, core_m_infall, core_radius, core_hm
     hfile.close()
     return core_wp
 
-def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False):
+def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False, use_model=True):
     m_infall_bins_edges = np.logspace(11.0, 13.0, 12)
     r_disrupt_bins_edges = np.linspace(0.00, 0.1, 12)
     m_infall_bins = dtk.bins_avg(m_infall_bins_edges)
@@ -316,19 +319,30 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False):
     best_m_infall = 0
     best_r_disrupt = 0
     min_cost = 100
+    core_dict = {"m_eff": core_m_infall, 
+                 "r_eff": core_radius}
     for m_i, m_infall_v in enumerate(m_infall_bins):
         print("progress: ", m_i/len(m_infall_bins))
         for r_i, r_disrupt_v in enumerate(r_disrupt_bins):
-            costs = []
-            if use_wp:
-                core_xi = get_cached_2pt("cache/peak_wp.hdf5", r_bins, core_xyz, core_m_infall, core_radius,  core_hmass, m_infall_v, r_disrupt_v, force=force)
-                costs.append( calc_distance(data_xi, core_xi))
-            if use_hod:
-                core_hod = get_cached_hod("cache/peak_hod.hdf5", mass_bins, hod_halo_cnt, core_m_infall, core_radius, core_hmass, m_infall_v, r_disrupt_v, force=force)
-                costs.append(calc_distance(data_hod, core_hod, max_dist=2.0))
-            if use_abundance:
-                cost_abund = calc_abundance_distance(-21.6, 256, core_m_infall, core_radius, m_infall_v, r_disrupt_v)
-                costs.append(cost_abund)
+            if not use_model:
+                costs = []
+                if use_wp:
+                    core_xi = get_cached_2pt("cache/peak_wp.hdf5", r_bins, core_xyz, core_m_infall, core_radius,  core_hmass, m_infall_v, r_disrupt_v, force=force)
+                    costs.append( calc_distance(data_xi, core_xi))
+                if use_hod:
+                    core_hod = get_cached_hod("cache/peak_hod.hdf5", mass_bins, hod_halo_cnt, core_m_infall, core_radius, core_hmass, m_infall_v, r_disrupt_v, force=force)
+                    costs.append(calc_distance(data_hod, core_hod, max_dist=2.0))
+                if use_abundance:
+                    cost_abund = calc_abundance_distance(-21.6, 256, core_m_infall, core_radius, m_infall_v, r_disrupt_v)
+                    costs.append(cost_abund)
+            else:
+                model_dict={"m_cut": m_infall_v, 
+                            "m_cut_k": 1000,
+                            "r_cut": r_disrupt_v,
+                            "r_cut_k": 1000}
+                weights = get_core_model_softrans(core_dict, model_dict)
+                if use_hod:
+                    pass
             cost = np.sum(costs)
             result[m_i, r_i] = cost
             print("\t", cost)
@@ -336,23 +350,7 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False):
                 best_m_infall = m_infall_v
                 best_r_disrupt = r_disrupt_v
                 min_cost = cost
-            # plt.figure()
-            # plt.title("{:.2f}".format(cost))
-            # plt.loglog(r_bins_cen, core_xi, label='core Mi:{:.2e} Rd:{:.2f}'.format(m_infall_v, r_disrupt_v))
-            # plt.loglog(r_bins_cen, data_xi, label='data')
-            # plt.legend()
-            # plt.ylabel('wp(r)')
-            # plt.xlabel('r [Mpc/h, comov, h=1]')
-
-            # plt.figure()
-            # plt.title("{:.2f}".format(cost))
-            # plt.loglog(mass_bins_cen, core_hod, label='core Mi:{:.2e} Rd:{:.2f}'.format(m_infall_v, r_disrupt_v))
-            # plt.loglog(mass_bins_cen, data_hod, label='data')
-            # plt.legend()
-            # plt.ylabel('HOD')
-            # plt.xlabel('M180b [Msun]')
-            # plt.show()
-
+                    
 
     abund_line_file = "../core_fit/tmp_hdf5/abundance=0.0024.hdf5"
     print(abund_line_file)
@@ -427,12 +425,12 @@ if __name__ == "__main__":
     # from halotools.sim_manager import DownloadManager
     # dman = DownloadManager()
     # dman.download_processed_halo_table('bolplanck', 'rockstar', 0.0) 
-    cosmology.setCosmology('WMAP7')
+
     grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=True)
     exit()
     Ldot_cut = np.log10(2.25e10)
     print(Ldot_cut)
-    # calc_1d_md(Ldot_cut)
+
     
 
     fig = calc_2pt(m_infall_cut=10**12.22, r_disrupt=0.03 )
@@ -448,25 +446,6 @@ if __name__ == "__main__":
 
     plt.title("Mstar+1.0")
 
-
-    # calc_2pt(fig, r_disrupt=0.01)
-    # calc_2pt(fig, r_disrupt=0.02)
-    # calc_2pt(fig, r_disrupt=0.03)
-    # calc_2pt(fig, r_disrupt=0.04)
-    # calc_2pt(fig, r_disrupt=0.05)
-    # calc_2pt(fig, r_disrupt=0.06)
-    # calc_2pt(fig, r_disrupt=0.07)
-
-
-    # fig = calc_2pt_md(10.75)
-    # calc_2pt(fig, m_infall_cut = 10**12.0)
-    # calc_2pt(fig, m_infall_cut = 10**12.1)
-    # calc_2pt(fig, m_infall_cut = 10**12.2)
-    # calc_2pt(fig, m_infall_cut = 10**12.3)
-    # calc_2pt(fig, m_infall_cut = 10**12.4)
-    # calc_2pt(fig, m_infall_cut = 10**12.5)
-    # calc_2pt(fig, m_infall_cut = 10**12.7)
-    # calc_2pt(fig, m_infall_cut = 10**12.8)
 
 
     dtk.save_figs("figs/")

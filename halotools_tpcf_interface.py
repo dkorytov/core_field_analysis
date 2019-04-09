@@ -3,6 +3,7 @@
 from __future__ import print_function, division
 import numpy as np
 from halotools.mock_observables import marked_tpcf, tpcf, marked_npairs_3d, npairs_3d, wp, marked_npairs_xy_z, npairs_xy_z
+import pdb
 
 def halotools_wprp(core_xyz, rp_bins, pi_max, period=None):
     cnts = npairs_xy_z(core_xyz, core_xyz, rp_bins, np.array([0,pi_max]), period=period)
@@ -14,9 +15,15 @@ def halotools_wprp(core_xyz, rp_bins, pi_max, period=None):
     expected_pair_cnts = Npts*r_bins_shell_vol*expected_density
     return cnts_shell/expected_pair_cnts - 1.0
 
-def halotools_weighted_wprp(core_xyz, rp_bins, pi_max, period=None, weights=None):
-    wcnts = marked_npairs_xy_z(core_xyz, core_xyz, rp_bins, np.array([0,pi_max]), period=period, weights=weights)
-    wcnts_shell = np.diff(cnts)
+def halotools_weighted_wprp(core_xyz, rp_bins, pi_max, period=None, weights=None, fast_cut = None):
+    if fast_cut is not None:
+        slct = weights>fast_cut
+        weights = weights[slct]
+        core_xyz = core_xyz[slct]
+        print("\tfast removed: {:.3f}".format(1.0 - np.sum(slct)/len(slct)))
+    wcnts = marked_npairs_xy_z(core_xyz, core_xyz, rp_bins, np.array([0,pi_max]), period=period, weights1=weights, weights2=weights, weight_func_id=1, num_threads=12)
+    wcnts = wcnts[:,1]-wcnts[:,0]
+    wcnts_shell = np.diff(wcnts)
     r_bins_vol = np.pi*rp_bins**2
     r_bins_shell_vol = np.diff(r_bins_vol)
     if weights is None:
@@ -25,7 +32,11 @@ def halotools_weighted_wprp(core_xyz, rp_bins, pi_max, period=None, weights=None
         Npts = np.sum(weights)
     expected_density = Npts/period**3
     expected_pair_cnts = Npts*r_bins_shell_vol*expected_density
-    return wcnts_shell/expected_pair_cnts - 1.0
+    result = wcnts_shell/expected_pair_cnts - 1.0
+    
+    # print("result: ", np.shape(result))
+    # pdb.set_trace()
+    return result
 
 def halotools_wtpcf(xyz, r_bins, period, weights=None):
     wcnts = marked_npairs_3d(xyz, xyz, r_bins, period=period, weights1=weights, weights2=weights, weight_func_id=1)
