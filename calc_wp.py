@@ -16,10 +16,9 @@ from colossus.halo import mass_adv
 from colossus.cosmology import cosmology
 from halotools.mock_observables import wp
 
+from core_model import *
 from abundance import get_expected_abundance
-
-r_bin_edges = np.logspace(-1, 1.5, 30)
-r_bin_cent = dtk.log_bins_avg(r_bin_edges)
+from data_wp import *
 
 
 def calc_abundance_distance(mag, rL, core_m_infall, core_radius, m_infall, r_disrupt):
@@ -36,9 +35,6 @@ def calc_abundance_distance(mag, rL, core_m_infall, core_radius, m_infall, r_dis
     return ((expected_abund-abund)/(0.1 * expected_abund))**2
 
 calc_abundance_distance._cache = {}
-def Ldot_from_mstar(offset=0):
-    return 10.352+offset/-2.5
-
 def calc_2pt(r_disrupt = .035, m_infall_cut = 10**12.2, fig = None,):
     if fig is None:
         fig = plt.figure()
@@ -142,15 +138,15 @@ def calc_distance_err(y1, y2, y1_err=None,  y2_err=None):
     err_tot = combine_err(y1_err, y2_err)
     return np.sum(((y1-y2)/err_tot)**2)
 
-def get_gao_2pt():
-    """ from https://arxiv.org/pdf/1401.3009.pdf """
-    wp = np.array([10029.85, 4744.7, 2860.37, 2732.31, 1560.89, 1025.62, 629.37, 363.88, 195.87, 128.8, 92.67, 67.65, 48.11, 32.13, 19.56, 10.59, 3.73, 1.24])
-    wp_err = np.array([7420.09, 883.75, 359.76, 236.19, 105.03, 60.78, 30.65, 12.43, 6.92, 4.58, 2.99, 2.09, 1.55, 1.33, 1.13, 0.87, 0.62, 0.5])
-    return wp, wp_err
+# def get_gao_2pt():
+#     """ from https://arxiv.org/pdf/1401.3009.pdf """
+#     wp = np.array([10029.85, 4744.7, 2860.37, 2732.31, 1560.89, 1025.62, 629.37, 363.88, 195.87, 128.8, 92.67, 67.65, 48.11, 32.13, 19.56, 10.59, 3.73, 1.24])
+#     wp_err = np.array([7420.09, 883.75, 359.76, 236.19, 105.03, 60.78, 30.65, 12.43, 6.92, 4.58, 2.99, 2.09, 1.55, 1.33, 1.13, 0.87, 0.62, 0.5])
+#     return wp, wp_err
 
-def get_gao_r_bins():
-    r_bins = np.logspace(-1.77, 1.8, 19)
-    return r_bins
+# def get_gao_r_bins():
+#     r_bins = np.logspace(-1.77, 1.8, 19)
+#     return r_bins
 
 def get_core_2pt(r_bins,  core_xyz, core_m_infall, core_radius, core_hmass, m_infall, r_disrupt):
     slct = (core_m_infall > m_infall) & (core_radius < r_disrupt)
@@ -167,65 +163,66 @@ def get_core_hod(mass_bins, hod_halo_cnt, core_m_infall, core_radius, core_hmass
     core_cnt, _= np.histogram(core_hmass[slct], bins=mass_bins)
     return core_cnt/hod_halo_cnt
 
-def get_cac09_md_hod(mass_bins, threshold=None):
-    model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
-    halocat = CachedHaloCatalog(simname='multidark', redshift=0)
-    halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
-    model.populate_mock(halocat)
-    pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
-                                     model.mock.galaxy_table['y'], 
-                                     model.mock.galaxy_table['z'], )
-    h_gal,  _  = np.histogram(model.mock.galaxy_table['halo_mvir'], bins=mass_bins)
-    h_halo, _  = np.histogram(halocat.halo_table['halo_mvir'],      bins=mass_bins)
-    return h_gal/h_halo
+# def get_cac09_md_hod(mass_bins, threshold=None):
+#     model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
+#     halocat = CachedHaloCatalog(simname='multidark', redshift=0)
+#     halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
+#     model.populate_mock(halocat)
+#     pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
+#                                      model.mock.galaxy_table['y'], 
+#                                      model.mock.galaxy_table['z'], )
+#     h_gal,  _  = np.histogram(model.mock.galaxy_table['halo_mvir'], bins=mass_bins)
+#     h_halo, _  = np.histogram(halocat.halo_table['halo_mvir'],      bins=mass_bins)
+#     return h_gal/h_halo
 
-def get_cac09_bp_hod(mass_bins, threshold=None):
-    model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
-    halocat = CachedHaloCatalog(simname='bolplanck', redshift=0)
-    halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
-    print(halocat.halo_table.keys())
-    model.populate_mock(halocat)
-    pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
-                                     model.mock.galaxy_table['y'], 
-                                     model.mock.galaxy_table['z'], )
-    h_gal,  _  = np.histogram(model.mock.galaxy_table['halo_mvir'], bins=mass_bins)
-    h_halo, _  = np.histogram(halocat.halo_table['halo_mvir'],      bins=mass_bins)
-    h = h_gal/h_halo
-    print("HOD: ", h)
-    print("h_gal:", h_gal)
-    print("h_halo:", h_halo)
-    return h_gal/h_halo
+# def get_cac09_bp_hod(mass_bins, threshold=None):
+#     model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
+#     halocat = CachedHaloCatalog(simname='bolplanck', redshift=0)
+#     halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
+#     print(halocat.halo_table.keys())
+#     model.populate_mock(halocat)
+#     pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
+#                                      model.mock.galaxy_table['y'], 
+#                                      model.mock.galaxy_table['z'], )
+#     h_gal,  _  = np.histogram(model.mock.galaxy_table['halo_mvir'], bins=mass_bins)
+#     h_halo, _  = np.histogram(halocat.halo_table['halo_mvir'],      bins=mass_bins)
+#     h = h_gal/h_halo
+#     print("HOD: ", h)
+#     print("h_gal:", h_gal)
+#     print("h_halo:", h_halo)
+#     return h_gal/h_halo
 
-def get_cac09_md_2pt(r_bins, threshold=None):
-    model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
-    halocat = CachedHaloCatalog(simname='multidark', redshift=0)
-    halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
-    model.populate_mock(halocat)
-    pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
-                                     model.mock.galaxy_table['y'], 
-                                     model.mock.galaxy_table['z'], )
-    print('starting 2pt')
-    # xi = tpcf(pos, r_bin_edges, period=halocat.Lbox)
-    xi = wp(pos, r_bins, pi_max=50, period=halocat.Lbox)
-    return xi
+# def get_cac09_md_2pt(r_bins, threshold=None):
+#     model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
+#     halocat = CachedHaloCatalog(simname='multidark', redshift=0)
+#     halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
+#     model.populate_mock(halocat)
+#     pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
+#                                      model.mock.galaxy_table['y'], 
+#                                      model.mock.galaxy_table['z'], )
+#     print('starting 2pt')
+#     # xi = tpcf(pos, r_bin_edges, period=halocat.Lbox)
+#     xi = wp(pos, r_bins, pi_max=50, period=halocat.Lbox)
+#     return xi
 
-def get_cac09_bp_2pt(r_bins, threshold=None):
-    model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
-    halocat = CachedHaloCatalog(simname='bolplanck', redshift=0)
-    halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
-    model.populate_mock(halocat)
-    pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
-                                     model.mock.galaxy_table['y'], 
-                                     model.mock.galaxy_table['z'], )
-    print('starting 2pt')
-    # xi = tpcf(pos, r_bin_edges, period=halocat.Lbox)
-    xi = wp(pos, r_bins, pi_max=50, period=halocat.Lbox)
-    print("wp(r): ", xi)
-    plt.figure()
-    plt.plot(r_bins[:-1], xi)
-    return xi
+# def get_cac09_bp_2pt(r_bins, threshold=None):
+#     model = PrebuiltHodModelFactory('cacciato09', threshold=threshold)
+#     halocat = CachedHaloCatalog(simname='bolplanck', redshift=0)
+#     halocat.halo_table['halo_m180b']=halocat.halo_table['halo_mvir']
+#     model.populate_mock(halocat)
+#     pos = return_xyz_formatted_array(model.mock.galaxy_table['x'], 
+#                                      model.mock.galaxy_table['y'], 
+#                                      model.mock.galaxy_table['z'], )
+#     print('starting 2pt')
+#     # xi = tpcf(pos, r_bin_edges, period=halocat.Lbox)
+#     xi = wp(pos, r_bins, pi_max=50, period=halocat.Lbox)
+#     print("wp(r): ", xi)
+#     plt.figure()
+#     plt.plot(r_bins[:-1], xi)
+#     return xi
 
-def load_fof(fof_fname):
+def load_fof(fof_fname="/media/luna1/dkorytov/data/AlphaQ/fof/m000-499.fofproperties"):
+    cosmology.setCosmology('WMAP7')
     fof_htag = dtk.gio_read(fof_fname, "fof_halo_tag")
     fof_mass = dtk.gio_read(fof_fname, "fof_halo_mass")
     m180b_mass, _, _ = mass_adv.changeMassDefinitionCModel(fof_mass/0.7*0.9, 0, 
@@ -237,10 +234,23 @@ def load_fof(fof_fname):
     #                    "m180b": m180b_mass})
     return fof_htag, m180b_mass
 
+def load_fof_cat(fof_fname="/media/luna1/dkorytov/data/AlphaQ/fof/m000-499.fofproperties"):
+    fof_cat = {}
+    fof_htag, m180b_mass = load_fof(fof_fname)
+    fof_cat['x'] = dtk.gio_read(fof_fname, 'fof_halo_center_x')
+    fof_cat['y'] = dtk.gio_read(fof_fname, 'fof_halo_center_y')
+    fof_cat['z'] = dtk.gio_read(fof_fname, 'fof_halo_center_z')
+    fof_cat['fof_mass'] = dtk.gio_read(fof_fname, 'fof_halo_mass')
+    fof_cat['htag'] = fof_htag
+    fof_cat['m180b'] = m180b_mass
+    # mvir, _, _ = mass_adv.changeMassDefinitionCModel(m180b_mass, 0, '180m', 'mvir', c_model='child18')
+    # fof_cat['mvir'] = mvir
+    return fof_cat
+    
 def get_cores(preprocessed=True):
     cosmology.setCosmology('WMAP7')
     if preprocessed:
-        core_loc = "/home/dkorytov/data/AlphaQ/core_catalog5_preprocessed/AlphaQ.499.hdf5"
+        core_loc = "/home/dkorytov/data/AlphaQ/core_catalog5_preprocessed/AlphaQ.499.central.hdf5"
         hfile = h5py.File(core_loc, 'r')
         print(hfile.keys())
         x = hfile['x'].value
@@ -293,23 +303,24 @@ def get_cached_2pt(fname,  r_bins, core_xyz, core_m_infall, core_radius, core_hm
     else:
         core_wp = get_core_2pt(r_bins, core_xyz, core_m_infall, core_radius, core_hmass, m_infall, r_disrupt)
         if write:
-            del hfile[key]
+            if key in hfile:
+                del hfile[key]
             hfile[key]=core_wp
     hfile.close()
     return core_wp
 
-def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False, use_model=True):
-    m_infall_bins_edges = np.logspace(11.0, 13.0, 12)
-    r_disrupt_bins_edges = np.linspace(0.00, 0.1, 12)
+def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False, use_model=False):
+    m_infall_bins_edges = np.logspace(12.0, 13.0, 32)
+    r_disrupt_bins_edges = np.linspace(0.00, 0.05, 32)
     m_infall_bins = dtk.bins_avg(m_infall_bins_edges)
     r_disrupt_bins = dtk.bins_avg(r_disrupt_bins_edges)
     result = np.zeros((m_infall_bins.size, r_disrupt_bins.size))
     # r_bins = np.logspace(-0.5,1.2, 32)
-    r_bins = get_gao_r_bins()/0.7
+    r_bins = get_gao_r_bins_edges()
     r_bins_cen = dtk.bins_avg(r_bins)
     mass_bins = np.logspace(13, 15, 16)
     mass_bins_cen = dtk.bins_avg(mass_bins)
-    core_xyz, core_m_infall, core_radius, core_hmass = get_cores()
+    core_xyz, core_m_infall, core_lg_m_infall, core_radius, core_hmass = get_cores()
     fof_fname = "/media/luna1/dkorytov/data/AlphaQ/fof/m000-499.fofproperties"
     halo_tags, halo_mass = load_fof(fof_fname)
     hod_halo_cnt, _ = np.histogram(halo_mass, bins=mass_bins)
@@ -327,7 +338,7 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False, use_m
             if not use_model:
                 costs = []
                 if use_wp:
-                    core_xi = get_cached_2pt("cache/peak_wp.hdf5", r_bins, core_xyz, core_m_infall, core_radius,  core_hmass, m_infall_v, r_disrupt_v, force=force)
+                    core_xi = get_cached_2pt("cache/peak_new_wp.hdf5", r_bins, core_xyz, core_m_infall, core_radius,  core_hmass, m_infall_v, r_disrupt_v, force=force)
                     costs.append( calc_distance(data_xi, core_xi))
                 if use_hod:
                     core_hod = get_cached_hod("cache/peak_hod.hdf5", mass_bins, hod_halo_cnt, core_m_infall, core_radius, core_hmass, m_infall_v, r_disrupt_v, force=force)
@@ -340,7 +351,7 @@ def grid_scan(use_hod=False, use_wp=True, use_abundance=True, force=False, use_m
                             "m_cut_k": 1000,
                             "r_cut": r_disrupt_v,
                             "r_cut_k": 1000}
-                weights = get_core_model_softrans(core_dict, model_dict)
+                weights = get_core_model_softtrans(core_dict, model_dict)
                 if use_hod:
                     pass
             cost = np.sum(costs)
