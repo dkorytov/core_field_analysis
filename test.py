@@ -121,7 +121,7 @@ def test_hod_model():
     
     plt.show()
 
-def test_lhc(n_sample = 300):
+def test_lhc(n_sample = 300, verbose=False):
     def calc_wp_cost(rp_bins, core_xyz, weights, data_wp, return_wp=False):
         core_wp = halotools_weighted_wprp(core_xyz, rp_bins, 20, period=256, weights=weights, fast_cut=0.01)
         cost= calc_distance(data_wp, core_wp)
@@ -180,29 +180,30 @@ def test_lhc(n_sample = 300):
         t2 = time.time()
         cost2 = calc_abundance_distance_weights(-21.22, 256.0, weights)
         t3 = time.time()
-        # cost3, core_wp = calc_wp_cost(rp_bins, core_xyz, weights, cac09_wp, return_wp=True)
+        cost3, core_wp = calc_wp_cost(rp_bins, core_xyz, weights, cac09_wp, return_wp=True)
         # core_wp = wps[i]
-        core_wp = gp_model.predict(design[i,:].reshape((1,4)))
-        cost3 = calc_distance(cac09_wp, core_wp)
+        # core_wp = gp_model.predict(design[i,:].reshape((1,4)))[0][0]
+        # cost3 = calc_distance(cac09_wp, core_wp)
         # cost3 = 0
         t4 = time.time()
         cost = cost2 + cost3
         design_cost[i]= cost
-        print(" ==   model   ==")
-        print("\tm_eff  :  {:.2f}".format(design[i,0]))
-        print("\tm_eff_k:  {:.2f}".format(design[i,1]))
-        print("\tr_eff  :  {:.3f}".format(design[i,2]))
-        print("\tr_eff_k:  {:.2f}".format(design[i,3]))
-        print("==cost: {:.2f}==".format(cost))
-        print("\t\tabund: {:.2f}".format(cost2))
-        print("\t\thod  : {:.2f}".format(cost1))
-        print("\t\twprp : {:.2f}".format(cost3))
-        print("==time: {:.3f}==".format(t4-t0))
-        print("\t\tweights: {:.3f}".format(t1-t0))
-        print("\t\thod    : {:.3f}".format(t2-t1))
-        print("\t\tabund  : {:.3f}".format(t3-t2))
-        print("\t\twp(rp) : {:.3f}".format(t4-t3))
-        print("\n")
+        if verbose:
+            print(" ==   model   ==")
+            print("\tm_eff  :  {:.2f}".format(design[i,0]))
+            print("\tm_eff_k:  {:.2f}".format(design[i,1]))
+            print("\tr_eff  :  {:.3f}".format(design[i,2]))
+            print("\tr_eff_k:  {:.2f}".format(design[i,3]))
+            print("==cost: {:.2f}==".format(cost))
+            print("\t\tabund: {:.2f}".format(cost2))
+            print("\t\thod  : {:.2f}".format(cost1))
+            print("\t\twprp : {:.2f}".format(cost3))
+            print("==time: {:.3f}==".format(t4-t0))
+            print("\t\tweights: {:.3f}".format(t1-t0))
+            print("\t\thod    : {:.3f}".format(t2-t1))
+            print("\t\tabund  : {:.3f}".format(t3-t2))
+            print("\t\twp(rp) : {:.3f}".format(t4-t3))
+            print("\n")
         if cost < design_best_cost:
             design_best_cost = cost
             design_best = design[i,:]
@@ -281,8 +282,10 @@ def test_lhc(n_sample = 300):
 
     weights_best = get_core_model_softtrans(core_dict, create_model_dict_from_lhc(design_best))
     # plt.figure()
-    # print(design_best)
-    # print(design_best_cost)
+    print("Best params in lhc:")
+    print(design_best)
+    print("Cost: ")
+    print(design_best_cost)
 
     core_whod_best = get_core_hod_weight(mass_bins, hod_halo_cnt, core_hmass, weights)
     # plt.title(str(design_best_cost))
@@ -335,7 +338,7 @@ if __name__ == "__main__":
     
     # run_and_save_lhc("cache/wps.test2.hdf5", 400, np.logspace(-1, 1, 16))a
     # exit()
-    test_lhc(n_sample = 300)
+    test_lhc(n_sample = 500)
     exit()
     lhc, rp_bins, wps = load_lhc_run("cache/wps.test2.hdf5")
     rp_bins_cen = dtk.bins_avg(rp_bins)

@@ -1,0 +1,9 @@
+**/cache
+*.pyc
+**/dtk
+**/fig
+**/figs
+**/figs_smaller_bins
+**/figs1
+**/tmp
+**/old
