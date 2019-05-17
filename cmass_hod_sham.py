@@ -53,7 +53,7 @@ def create_cmass_hod():
     alpha  = 0.97
     return HODModelCMASS(lgMcut, lgM1, sigma, kappa, alpha)
 
-def load_sod_cat(fname):
+def load_sod_cat(fname, redshift):
     print("loading sod cat")
     t1 = time.time()
     cat = {}
@@ -63,7 +63,7 @@ def load_sod_cat(fname):
     cat['y'] = dtk.gio_read(fname, 'fof_halo_center_y')
     cat['z'] = dtk.gio_read(fname, 'fof_halo_center_z')
     cat['m200c'] = dtk.gio_read(fname, 'sod_halo_mass') #m200c, Msun/h, h=0.7
-    cat['m180b'], cat['r180b'], cat['c180b'] = mass_adv.changeMassDefinitionCModel(cat['m200c']/0.7, 0, 
+    cat['m180b'], cat['r180b'], cat['c180b'] = mass_adv.changeMassDefinitionCModel(cat['m200c']/0.7, redshift, 
                                                                                    "200c", "180m", 
                                                                                    c_model='child18')
 
@@ -117,7 +117,7 @@ def compute_cmass_hod_2pt(gal_dict):
     plt.figure()
     # f, axs = plt.subplots(2, 1, gridspec_kw={'height_ratios':[3,1]})
     ax0 = plt.subplot(gs[:3,:])
-    ax0.loglog(r_bin_cen, xi, label=r'$\rm{HOD}$')
+    ax0.loglog(r_bin_cen, xi, label=r'$\rm{OuterRim~HOD}$')
     cmass_r_edges, cmass_r_cen  = get_cmass_r_bins()
     cmass_wp, cmass_wp_err = get_cmass_wp()
     ax0.loglog(cmass_r_cen*0.7, cmass_wp, label=r'$\rm{CMASS~Data}$')
@@ -138,24 +138,36 @@ def compute_cmass_hod_2pt(gal_dict):
     ax1.set_xlim(ax0.get_xlim())
     ax0.set_xticklabels([])    
 
-
-
-def cmass_hod():
+def calc_cmass_hod_2pt():
     gal_dict = load_cmass_hod_galaxies()
+    plt.figure()
+    plt.plot(gal_dict['x'], gal_dict['y'], ',', alpha=1.0,)
+    rl = 500
+    vol = rl*rl*rl
+    num = gal_dict['x'].size
+    abundance = num/vol
+    print("abundance: {:.2e}".format(abundance))
+    print("abundance relative error: {:.2f}".format((abundance-3.6e-4)/3.6e-4))
+    plt.show()
+
     compute_cmass_hod_2pt(gal_dict)
 
 if __name__ == "__main__":
-    cmass_hod()
-    plt.show()
-    exit()
+    # calc_cmass_hod_2pt()    
+    # plt.show()
+    # exit()
+
     print("yo")
     cosmology.setCosmology('WMAP7')
     cmass_hod = create_cmass_hod()
-    sod_gio_fname = '/media/luna1/dkorytov/data/OuterRim/sod/m000.401.sodproperties'
-    sod_hdf5_fname = "cache/sod180b.hdf5"
-    # sod_cat = load_sod_cat(sod_gio_fname)
-    # dtk.save_dict_hdf5(sod_hdf5_fname, sod_cat)
-    sod_cat = dtk.load_dict_hdf5(sod_hdf5_fname)
+    stepz = dtk.StepZ(sim_name='AlphaQ')
+    step = 323
+    step_z = stepz.get_z(step)
+    sod_gio_fname = '/media/luna1/dkorytov/data/OuterRim/sod/m000.${step}.sodproperties'
+    sod_hdf5_fname = "cache/sod180b.${step}.hdf5"
+    # sod_cat = load_sod_cat(sod_gio_fname.replace("${step}", str(step)), step_z)
+    # dtk.save_dict_hdf5(sod_hdf5_fname.replace("${step}", str(step)), sod_cat)
+    sod_cat = dtk.load_dict_hdf5(sod_hdf5_fname.replace("${step}", str(step)))
     generate_cmass_hod_galaxies(sod_cat)
     sod_cen, sod_sat = cmass_hod.populate(sod_cat['m180b'], return_expected=True)
     sod_tot = sod_cen+sod_cen*sod_sat
@@ -185,6 +197,7 @@ if __name__ == "__main__":
     sod_pop_cen, sod_pop_sat = cmass_hod.populate(sod_cat['m180b'])
     print(sod_pop_cen, sod_pop_sat)
     sod_pop_tot = sod_pop_cen + sod_pop_cen*sod_pop_sat
-    
+
+    calc_cmass_hod_2pt()    
 
     plt.show()
