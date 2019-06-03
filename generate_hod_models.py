@@ -153,9 +153,13 @@ def get_parejko_2015_hod_model():
     return HODModel(log_M_min, sigma_log_M, log_M0, log_M1, alpha)
     
 def prep_galaxy_dict(size):
+    print("prep_galaxy_dict, size: ", size)
     galaxies = {}
     for key in ['x', 'y', 'z', 'halo_mass']:
-        galaxies[key] = np.zeros(size, dtype=np.float)
+        print(key)
+        print(type(key))
+        a = np.zeros(size, dtype='f4')
+        galaxies[key] = a
     galaxies['htag'] = np.zeros(size, dtype='i8')
     galaxies['central'] = np.zeros(size, dtype=bool)
     return galaxies
@@ -167,9 +171,9 @@ def get_spherical_position(num):
 
 def populate_halo_with_galaxies(nfw_profile, galaxy_num, halo_mass,
                                 concentration):
-    x = np.zeros((galaxy_num), dtype=float)
-    y = np.zeros((galaxy_num), dtype=float)
-    z = np.zeros((galaxy_num), dtype=float)
+    x = np.zeros(galaxy_num, dtype=float)
+    y = np.zeros(galaxy_num, dtype=float)
+    z = np.zeros(galaxy_num, dtype=float)
     if galaxy_num > 0:
         x[0] = 0
         y[0] = 0
@@ -183,15 +187,15 @@ def populate_halo_with_galaxies(nfw_profile, galaxy_num, halo_mass,
     return x, y, z
     
 def populate_halos_with_galaxies_with_NFW(fof_cat):
-    fof_cat_size= len(fof_cat['x'])
-    galaxy_size = np.sum(fof_cat['galaxy_number'])
+    fof_cat_size= fof_cat['x'].size
+    galaxy_size = np.int64(np.sum(fof_cat['galaxy_number']))
     galaxy_dict = prep_galaxy_dict(galaxy_size)
     gal_offset = 0
     nfw_profile = NFWProfile(mdef='vir', conc_mass_model='dutton_maccio14')
     for i in range(0, fof_cat_size):
         if(i%100000 == 1):
             print(i, fof_cat_size, i/fof_cat_size)
-        gal_num = fof_cat['galaxy_number'][i]
+        gal_num = np.int64(fof_cat['galaxy_number'][i])
         if gal_num > 0:        
             gal_a, gal_b = gal_offset, gal_offset+gal_num
             x, y, z = populate_halo_with_galaxies(nfw_profile, 

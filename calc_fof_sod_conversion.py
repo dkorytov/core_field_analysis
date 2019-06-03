@@ -57,8 +57,8 @@ def plot_relation(cat):
 if __name__ == "__main__":
     fof_fname = "/media/luna1/dkorytov/data/AlphaQ/fof/m000-${step}.fofproperties"
     sod_fname = "/media/luna1/dkorytov/data/AlphaQ/sod/m000-${step}.sodproperties"
-    fof_cat = load_fof(fof_fname.replace("${step}", str(401)))
-    sod_cat = load_sod(sod_fname.replace("${step}", str(401)))
+    fof_cat = load_fof(fof_fname.replace("${step}", str(323)))
+    sod_cat = load_sod(sod_fname.replace("${step}", str(323)))
                        
     both_cat = combine_cat(fof_cat, sod_cat)
     plot_relation(both_cat)

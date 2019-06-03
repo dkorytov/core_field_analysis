@@ -22,15 +22,19 @@ from colossus.halo import mass_adv
 from colossus.cosmology import cosmology
 
 
-def convert_step401_fofmass_to_m180b(fof_mass):
+def convert_step401_fofmass_to_m180b(fof_mass, return_all=False):
+    # for step 323, it's 0.92 so it's close enough
     m200c = fof_mass*0.9 #from calc_fof_sod_conversion.py for step 401
     cosmology.setCosmology('WMAP7')
 
-    m180b,_,_ = mass_adv.changeMassDefinitionCModel(m200c/0.7, 0.2, 
+    m180b, r180b, c180b = mass_adv.changeMassDefinitionCModel(m200c/0.7, 0.2, 
                                                "200c", "180m", 
                                                c_model='child18')
     m180b *=0.7
-    return m180b
+    if return_all:
+        return m180b, r180b, c180b
+    else:
+        return m180b
 
 
 def plot_cmass_hod_sham(fname_sham = "tmp/infall_hod.cmass.AQ.hdf5"):

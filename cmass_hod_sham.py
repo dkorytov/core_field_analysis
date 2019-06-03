@@ -106,32 +106,33 @@ def get_cmass_wp():
     r_bin_edges, r_bin_cen = get_cmass_r_bins()
     return rwp/r_bin_cen, rerr/r_bin_cen
 
-def compute_cmass_hod_2pt(gal_dict):
+def compute_cmass_hod_2pt(gal_dict, period=500, gal_label=r'$\rm{OuterRim~HOD}$'):
     core_xyz = return_xyz_formatted_array(gal_dict['x'],
                                           gal_dict['y'],
                                           gal_dict['z'])
     r_bin_edges = np.logspace(-1,1.5,100)
     r_bin_cen   = dtk.bins_avg(r_bin_edges)
-    xi = wp(core_xyz, r_bin_edges, pi_max=50, period=500)
+    xi = wp(core_xyz, r_bin_edges, pi_max=50, period=period)
     gs = gridspec.GridSpec(4,4)
     plt.figure()
     # f, axs = plt.subplots(2, 1, gridspec_kw={'height_ratios':[3,1]})
     ax0 = plt.subplot(gs[:3,:])
-    ax0.loglog(r_bin_cen, xi, label=r'$\rm{OuterRim~HOD}$')
+    ax0.loglog(r_bin_cen, xi, label=gal_label)
     cmass_r_edges, cmass_r_cen  = get_cmass_r_bins()
     cmass_wp, cmass_wp_err = get_cmass_wp()
-    ax0.loglog(cmass_r_cen*0.7, cmass_wp, label=r'$\rm{CMASS~Data}$')
-    ax0.fill_between(cmass_r_cen*0.7, cmass_wp-cmass_wp_err, cmass_wp+cmass_wp_err,color='g', alpha=0.3)
+    k=1.0 # Hmm, missing h-factor?
+    ax0.loglog(cmass_r_cen*k, cmass_wp, label=r'$\rm{CMASS~Obs.}$')
+    ax0.fill_between(cmass_r_cen*k, cmass_wp-cmass_wp_err, cmass_wp+cmass_wp_err,color='g', alpha=0.3)
     ax0.legend(loc='best')
     ax0.set_ylabel(r'$\omega_p(r_p)$')
 
 
     ax1 = plt.subplot(gs[-1,:])
-    x,y_diff, y_diff_relative = dtk.diff_curves(r_bin_cen, xi, cmass_r_cen*0.7, cmass_wp)
+    x,y_diff, y_diff_relative = dtk.diff_curves(r_bin_cen, xi, cmass_r_cen*k, cmass_wp, log=True)
     ax1.plot(x, y_diff_relative)
     ax1.axhline(0, ls='--', color='k')
-    ax1.fill_between(cmass_r_cen*0.7, -cmass_wp_err/(cmass_wp), cmass_wp_err/(cmass_wp), color='g', alpha=0.3)
-    ax1.set_ylabel(r'$\frac{HOD-Data}{Data}$')
+    ax1.fill_between(cmass_r_cen*k, -cmass_wp_err/(cmass_wp), cmass_wp_err/(cmass_wp), color='g', alpha=0.3)
+    ax1.set_ylabel(r'$\rm{Relative~Error}$')
     ax1.set_ylim([-1,1])
     ax1.set_xlabel(r'$r_p~[h^{-1}Mpc, h=0.7]$')
     ax1.set_xscale('log')

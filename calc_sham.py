@@ -23,6 +23,9 @@ import h5py
 import time
 import halotools
 
+from plot_cmass_hod_sham import convert_step401_fofmass_to_m180b
+from generate_hod_models import populate_halos_with_galaxies_with_NFW
+from cmass_hod_sham import compute_cmass_hod_2pt
 class MergerTree:
     def __init__(self, fname=None):
         if fname is not None:
@@ -101,33 +104,34 @@ class MergerTree:
             self.print_halo(progen, prefix="\t\t")
                                                
     def get_halo_mass_and_infall_counts(self, mass_limit, step,
-                                        last_isolated=False):
+                                        last_isolated=False, return_position=False):
         step_slct = (self.step == step) & (self.mass > mass_limit)
         halo_indexes = np.where(step_slct)[0]
         total_count = 0
         masses = []
         counts  = []
-        # print(halo_indexes)
-        
+        pos_x = []
+        pos_y = []
+        pos_z = []
         for i, halo_i in enumerate(halo_indexes):
-            # print(i/len(halo_indexes))
-            # print("getting infall count for ", halo_i)
-            # print("\tmass: {:.2e}".format(self.mass[halo_i]))
-
             cnt = self.count_halo_infalls(halo_i, mass_limit)
             masses.append(self.mass[halo_i])
             counts.append(cnt)
-            # print("\tcnt : ", cnt)
+            if return_position:
+                pos_x.append(self.pos[halo_i, 0])
+                pos_y.append(self.pos[halo_i, 1])
+                pos_z.append(self.pos[halo_i, 2])
+
         masses = np.array(masses)
         counts = np.array(counts)
-        # plt.figure()
-        # plt.loglog(masses, counts, '.', alpha=0.3)
-        # mass_bins = dtk.get_logbins(masses)
-        # mass_bins_cen  = dtk.bins_avg(mass_bins)
-        # avg = dtk.binned_average(masses, counts, mass_bins)
-        # plt.plot(mass_bins_cen, avg, '-r')
-        return masses, counts
-
+        if return_position:
+            pos_x = np.array(pos_x)
+            pos_y = np.array(pos_y)
+            pos_z = np.array(pos_z)
+            return masses, counts, pos_x, pos_y, pos_z
+        else:
+            return masses, counts
+        
     def get_volume(self, step):
         slct_step = self.step == step
         print(np.shape(self.pos))
@@ -142,6 +146,7 @@ class MergerTree:
         print("\t{:.2f}".format(volume))
         return volume
         
+
 class MergerTreeGroup:
     def __init__(self, fname_pattern, num=None):
         self.merger_trees = []
@@ -157,20 +162,36 @@ class MergerTreeGroup:
                 self.merger_trees.append(mt)
             eta.print_done()
             
-    def get_halo_mass_and_infall_counts(self, infall, step):
+    def get_halo_mass_and_infall_counts(self, infall, step, return_position=False):
         masses = []
         counts = []
+        pos_x = []
+        pos_y = []
+        pos_z = []
         eta = dtk.ETA()
         mt_size = len(self.merger_trees)
         for i in range(0, mt_size):
             eta.print_progress(i, mt_size)
-            m,c = self.merger_trees[i].get_halo_mass_and_infall_counts(infall, step)
+            if return_position:
+                m, c, x, y, z = self.merger_trees[i].get_halo_mass_and_infall_counts(infall, step, return_position=True)
+                pos_x.append(x)
+                pos_y.append(y)
+                pos_z.append(z)
+            else:
+                m,c = self.merger_trees[i].get_halo_mass_and_infall_counts(infall, step)
             masses.append(m)
             counts.append(c)
         eta.print_done()
+
         masses = np.concatenate(masses)
         counts = np.concatenate(counts)
-        return masses, counts
+        if return_position:
+            pos_x = np.concatenate(pos_x)
+            pos_y = np.concatenate(pos_y)
+            pos_z = np.concatenate(pos_z)
+            return masses, counts, pos_x, pos_y, pos_z
+        else:
+            return masses, counts
 
     def get_count_by_infall(self, infall, step):
         m,c = self.get_halo_mass_and_infall_counts(infall, step)
@@ -205,6 +226,7 @@ class MergerTreeGroup:
             volume_tot += mt.get_volume(step)
         return volume_tot
     
+
 def min_max(x):
     return np.min(x), np.max(x)
 
@@ -259,22 +281,82 @@ def load_merger_trees(fname, num=None, vol_per_num=None,
         plt.show()
     dtk.save_dict_hdf5(fname_out,{"mass_bins_cen":mass_bins_cen,
                                               "avg_cnt"      :avg})
+def make_fof_cat(mass, count, x, y, z):
+    fof_cat = {}
+    fof_cat['fof_mass'] = mass
+    fof_cat['galaxy_number'] = count
+    fof_cat['x'] = x
+    fof_cat['y'] = y
+    fof_cat['z'] = z
+    m180b, r180b, c180b = convert_step401_fofmass_to_m180b(mass, return_all=True)
+    fof_cat['m180b'] = m180b
+    fof_cat['r180b'] = r180b
+    fof_cat['c180b'] = c180b
+    fof_cat['htag']  = np.zeros_like(x, dtype=int)
+    return fof_cat
 
+def plot_galaxies(gal_cat):
+    plt.figure()
+    plt.plot(gal_cat['x'], gal_cat['y'], ',')
     
+    plt.figure()
+    plt.plot(gal_cat['x'], gal_cat['y'], ',')
+    plt.show()
 
+def get_SHAM_2pt(mt_fname, num=None, vol_per_num=None,
+                 expected_abundance=None, step=323, step_z = None):
+    if step_z is None:
+        step2z = dtk.StepZ(sim_name='AlphaQ')
+        step_z = step2z.get_z(step)
+    if (mt_fname, num) not in get_SHAM_2pt._cache:
+        mt_group = MergerTreeGroup(mt_fname, num)
+        get_SHAM_2pt._cache[(mt_fname, num)] = mt_group
+    else:
+        mt_group = get_SHAM_2pt._cache[(mt_fname, num)]
+    if expected_abundance is not None:
+        vol = vol_per_num*num
+        expected_count = vol*expected_abundance
+        infall  = mt_group.get_infall_by_count(expected_count, step, min_mass=5e12)
+    else:
+        infall = mt_group.get_infall_by_count(100*num, step)
+    # infall=1.11e13
+    print("INFALL: ", infall)
+    mass, count, x, y, z = mt_group.get_halo_mass_and_infall_counts(infall, step, return_position=True)
+    fof_cat = make_fof_cat(mass, count, x, y, z)
+    gal_cat = populate_halos_with_galaxies_with_NFW(fof_cat)
+    
+    compute_cmass_hod_2pt(gal_cat, 256.0, gal_label='AlphaQ SHAM[{:.1e}]'.format(infall))
+   
+
+get_SHAM_2pt._cache = {}
+    
+    
+    
 
 
 
 if __name__ == "__main__":
     # load_merger_trees('/media/luna1/dkorytov/data/AlphaQ/merger_trees3/AlphaQ.${num}.hdf5',
-    #                   num=10, vol_per_num = 256*256,
+    #                   num=3, vol_per_num = 256*256,
     #                   expected_abundance=3.6e-4, fname_out =
     #                   "tmp/infall_hod.cmass.AQ.hdf5", 
     #                   plot=True)
-    load_merger_trees('/media/luna1/dkorytov/data/OuterRim/merger_trees/OR.${num}.hdf5',
-                      num=3, vol_per_num = 300*300*250,
-                      expected_abundance=3.6e-4,
-                      fname_out = "tmp/infall_hod.cmass.OR.hdf5")
+
+    # load_merger_trees('/media/luna1/dkorytov/data/OuterRim/merger_trees/OR.${num}.hdf5',
+    #                   num=3, vol_per_num = 300*300*250,
+    #                   expected_abundance=3.6e-4,
+    #                   fname_out = "tmp/infall_hod.cmass.OR.hdf5")
+
+    get_SHAM_2pt('/media/luna1/dkorytov/data/AlphaQ/merger_trees3/AlphaQ.${num}.hdf5',
+                 num=256, vol_per_num = 256*256,
+                 expected_abundance=3.6e-4)
+    get_SHAM_2pt('/media/luna1/dkorytov/data/AlphaQ/merger_trees3/AlphaQ.${num}.hdf5',
+                 num=256, vol_per_num = 256*256,
+                 expected_abundance=4.1e-4)
+    plt.show()
+    # get_SHAM_2pt('/media/luna1/dkorytov/data/OuterRim/merger_trees/OR.${num}.hdf5',
+    #              num=3, vol_per_num = 256*256,
+    #              expected_abundance=3.6e-4)
 
 
 
